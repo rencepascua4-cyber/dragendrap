@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
+    <title>✨ WordSpark · file chooser + lively stats (txt, doc, docx)</title>
+    <!-- Tailwind + vibrant additions -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- mammoth.js for docx -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
+    <style>
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-6px); }
+            100% { transform: translateY(0px); }
+        }
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.5); }
+            70% { box-shadow: 0 0 0 12px rgba(79, 70, 229, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
+        }
+        .animate-float {
+            animation: float 3s ease-in-out infinite;
+        }
+        .animate-pulse-glow {
+            animation: pulse-glow 2s infinite;
+        }
+        .file-checkbox:checked {
+            background-color: #4f46e5;
+            border-color: #4f46e5;
+        }
+        .stat-card {
+            transition: all 0.2s ease;
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .word-row:hover {
+            background-color: #f1f5f9;
+        }
+        .file-item {
+            transition: all 0.2s;
+        }
+        .file-item:hover {
+            background-color: #f8fafc;
+            border-color: #a5b4fc;
+        }
+        .file-item.selected {
+            background-color: #eef2ff;
+            border-color: #4f46e5;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 font-sans antialiased min-h-screen flex items-center justify-center p-3 md:p-5">
+
+    <!-- main container -->
+    <div class="w-full max-w-7xl bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-indigo-200/50 p-4 md:p-7 relative overflow-hidden">
+        
+        <!-- decorative elements -->
+        <div class="absolute -top-10 -right-10 w-40 h-40 bg-indigo-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-float"></div>
+        <div class="absolute -bottom-10 -left-10 w-40 h-40 bg-purple-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-float" style="animation-delay: 1.5s;"></div>
+
+        <!-- HEADER with live stats -->
+        <div class="relative z-10 flex flex-wrap items-center justify-between gap-4 mb-6">
+            <div class="flex items-center gap-3">
+                <div class="bg-gradient-to-tr from-indigo-600 to-purple-600 p-3 rounded-2xl shadow-lg animate-pulse-glow">
+                    <i class="fa-solid fa-chart-pie text-2xl text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-3xl md:text-4xl font-black bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent">
+                        WordSpark
+                    </h1>
+                    <p class="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                        <i class="fa-regular fa-square-check text-indigo-400"></i> 
+                        <span>choose which files to count · txt doc docx</span>
+                    </p>
+                </div>
+            </div>
+            
+            <!-- LIVE STATS BADGE -->
+            <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-5 py-2.5 rounded-2xl shadow-lg flex items-center gap-4 text-sm">
+                <div class="flex items-center gap-1">
+                    <i class="fa-regular fa-file text-white/90"></i>
+                    <span class="font-mono font-bold" id="liveFileCount">0</span>
+                </div>
+                <div class="w-px h-5 bg-white/30"></div>
+                <div class="flex items-center gap-1">
+                    <i class="fa-regular fa-gem text-yellow-200"></i>
+                    <span class="font-mono font-bold" id="liveUnique">0</span>
+                </div>
+                <div class="w-px h-5 bg-white/30"></div>
+                <div class="flex items-center gap-1">
+                    <i class="fa-regular fa-clock text-white/90"></i>
+                    <span class="font-mono font-bold" id="liveTotal">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- DROP ZONE -->
+        <div id="dropZone" 
+             class="relative z-10 border-4 border-dashed border-indigo-300 bg-gradient-to-br from-indigo-50/80 to-purple-50/80 rounded-2xl p-6 md:p-8 text-center cursor-pointer transition-all duration-300 group hover:border-indigo-500 hover:scale-[1.01] hover:shadow-xl mb-6">
+            
+            <input type="file" id="fileInput" accept=".txt,.doc,.docx,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hidden" multiple>
+            
+            <div class="pointer-events-none space-y-3">
+                <div class="relative inline-block">
+                    <i class="fa-solid fa-cloud-arrow-up text-5xl md:text-6xl text-indigo-400 group-hover:scale-110 transition-transform group-hover:text-indigo-600"></i>
+                    <span class="absolute -top-1 -right-1 flex h-5 w-5">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-5 w-5 bg-purple-500 border-2 border-white"></span>
+                    </span>
+                </div>
+                <p class="text-slate-700 text-lg md:text-2xl font-bold">
+                    <span class="md:hidden"><i class="fa-regular fa-hand-pointer mr-2"></i>tap to select files</span>
+                    <span class="hidden md:inline"><span class="text-indigo-600">drag & drop</span> or <span class="text-indigo-600 underline decoration-wavy">browse</span></span>
+                </p>
+                <p class="text-xs text-slate-500 bg-white/50 inline-block px-4 py-1 rounded-full">
+                    <i class="fa-regular fa-circle-check text-green-500 mr-1"></i> choose files below to include in stats
+                </p>
+            </div>
+        </div>
+
+        <!-- LOADER -->
+        <div id="loaderContainer" class="hidden flex items-center justify-center gap-4 my-4 bg-indigo-50 p-4 rounded-2xl border border-indigo-200">
+            <div class="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+            <p class="text-indigo-700 font-medium" id="loaderText">Processing documents...</p>
+        </div>
+        
+        <div id="messageArea" class="my-3 text-sm hidden items-center gap-2 p-4 rounded-xl border"></div>
+
+        <!-- MAIN LAYOUT: file selector + results -->
+        <div id="mainContent" class="relative z-10 mt-4 hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-5">
+                
+                <!-- LEFT PANEL: file selector (file manager) -->
+                <div class="lg:col-span-1 bg-white/80 rounded-2xl border border-indigo-200 p-4 shadow-lg h-fit">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-indigo-800 flex items-center gap-2">
+                            <i class="fa-regular fa-rectangle-list"></i> Your files
+                        </h3>
+                        <div class="flex gap-1">
+                            <button id="selectAllBtn" class="text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-2 py-1 rounded" title="select all">all</button>
+                            <button id="deselectAllBtn" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded" title="deselect all">none</button>
+                        </div>
+                    </div>
+                    
+                    <!-- file list container (scrollable) -->
+                    <div id="fileListContainer" class="space-y-2 max-h-96 overflow-y-auto pr-1">
+                        <!-- dynamic file checkboxes will appear here -->
+                    </div>
+                    
+                    <div class="mt-3 pt-2 border-t border-slate-200 text-xs text-slate-500">
+                        <i class="fa-regular fa-circle-info mr-1"></i>
+                        <span id="selectedFilesCount">0</span> files selected
+                    </div>
+                </div>
+
+                <!-- RIGHT PANEL: stats & tables -->
+                <div class="lg:col-span-3 space-y-5">
+                    
+                    <!-- STATS CARDS (based on selected files) -->
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        <div class="stat-card rounded-xl p-4 border border-indigo-200">
+                            <div class="flex items-center gap-2 text-indigo-600 mb-1">
+                                <i class="fa-regular fa-folder-open"></i>
+                                <span class="text-xs uppercase">selected</span>
+                            </div>
+                            <p class="text-3xl font-black text-slate-800" id="selectedFilesStat">0</p>
+                        </div>
+                        <div class="stat-card rounded-xl p-4 border border-purple-200">
+                            <div class="flex items-center gap-2 text-purple-600 mb-1">
+                                <i class="fa-regular fa-gem"></i>
+                                <span class="text-xs uppercase">unique</span>
+                            </div>
+                            <p class="text-3xl font-black text-slate-800" id="selectedUnique">0</p>
+                        </div>
+                        <div class="stat-card rounded-xl p-4 border border-fuchsia-200">
+                            <div class="flex items-center gap-2 text-fuchsia-600 mb-1">
+                                <i class="fa-regular fa-clock"></i>
+                                <span class="text-xs uppercase">total words</span>
+                            </div>
+                            <p class="text-3xl font-black text-slate-800" id="selectedTotalWords">0</p>
+                        </div>
+                        <div class="stat-card rounded-xl p-4 border border-amber-200 col-span-2 md:col-span-1">
+                            <div class="flex items-center gap-2 text-amber-600 mb-1">
+                                <i class="fa-regular fa-crown"></i>
+                                <span class="text-xs uppercase">top word</span>
+                            </div>
+                            <div class="flex items-baseline justify-between gap-1">
+                                <p class="text-xl font-bold text-slate-800 truncate" id="selectedTopWord">-</p>
+                                <p class="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full" id="selectedTopFreq">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card rounded-xl p-4 border border-emerald-200 col-span-2 md:col-span-1">
+                            <div class="flex items-center gap-2 text-emerald-600 mb-1">
+                                <i class="fa-regular fa-chart-line"></i>
+                                <span class="text-xs uppercase">instances/unique</span>
+                            </div>
+                            <p class="text-2xl font-black text-slate-800" id="selectedAvg">0.0</p>
+                        </div>
+                    </div>
+
+                    <!-- TABS -->
+                    <div class="flex gap-2 bg-white p-1.5 rounded-2xl shadow-inner border border-slate-200 w-fit">
+                        <button id="tabPerFile" class="tab-btn px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 bg-indigo-600 text-white shadow-md">
+                            <i class="fa-regular fa-rectangle-list"></i> Per file
+                        </button>
+                        <button id="tabCumulative" class="tab-btn px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 text-slate-600 hover:bg-indigo-50">
+                            <i class="fa-regular fa-globe"></i> Cumulative (selected)
+                        </button>
+                    </div>
+
+                    <!-- PER FILE VIEW (filtered by selected files) -->
+                    <div id="perFileView" class="space-y-4">
+                        <div id="filesContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                    </div>
+
+                    <!-- CUMULATIVE VIEW -->
+                    <div id="cumulativeView" class="hidden space-y-4">
+                        <div class="bg-gradient-to-r from-indigo-100 to-purple-100 p-4 rounded-xl border border-indigo-200">
+                            <p class="text-sm text-indigo-800"><i class="fa-regular fa-lightbulb mr-2"></i><span class="font-bold">unique words from selected files</span> — total instances</p>
+                        </div>
+                        <div class="bg-white/90 rounded-2xl border border-slate-200 overflow-hidden">
+                            <div class="max-h-80 overflow-y-auto">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-gradient-to-r from-indigo-600 to-purple-600 sticky top-0 text-white">
+                                        <tr><th class="text-left py-3 px-5">Word</th><th class="text-right py-3 px-5">Instances</th></tr>
+                                    </thead>
+                                    <tbody id="cumulativeWordTable" class="divide-y divide-slate-100"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CLEAR BUTTON -->
+            <div class="flex justify-end mt-5">
+                <button id="clearAllBtn" class="bg-white border-2 border-rose-200 hover:border-rose-400 text-rose-600 px-5 py-2.5 rounded-full text-sm font-bold transition-all flex items-center gap-2 shadow-sm">
+                    <i class="fa-regular fa-trash-can"></i> clear all files
+                </button>
+            </div>
+        </div>
+
+        <!-- EMPTY STATE -->
+        <div id="emptyState" class="text-center py-12 text-slate-400 mt-4">
+            <i class="fa-regular fa-face-smile text-6xl mb-4 text-indigo-300 animate-float"></i>
+            <p class="text-lg font-medium text-slate-500">drop documents to begin ✨</p>
+            <p class="text-sm text-slate-400 mt-1">then choose which files to include</p>
+        </div>
+    </div>
+
+    <!-- JavaScript (file selection + dynamic stats) -->
+    <script>
+        (function() {
+            // ----- DOM elements -----
+            const dropZone = document.getElementById('dropZone');
+            const fileInput = document.getElementById('fileInput');
+            const loader = document.getElementById('loaderContainer');
+            const loaderText = document.getElementById('loaderText');
+            const msgDiv = document.getElementById('messageArea');
+            const mainContent = document.getElementById('mainContent');
+            const emptyState = document.getElementById('emptyState');
+            
+            // file list container
+            const fileListContainer = document.getElementById('fileListContainer');
+            const selectedFilesCountSpan = document.getElementById('selectedFilesCount');
+            
+            // stat elements (selected files)
+            const selectedFilesStat = document.getElementById('selectedFilesStat');
+            const selectedUnique = document.getElementById('selectedUnique');
+            const selectedTotalWords = document.getElementById('selectedTotalWords');
+            const selectedTopWord = document.getElementById('selectedTopWord');
+            const selectedTopFreq = document.getElementById('selectedTopFreq');
+            const selectedAvg = document.getElementById('selectedAvg');
+            
+            // tables & containers
+            const cumulativeWordTable = document.getElementById('cumulativeWordTable');
+            const filesContainer = document.getElementById('filesContainer');
+            const perFileView = document.getElementById('perFileView');
+            const cumulativeView = document.getElementById('cumulativeView');
+            const tabPerFile = document.getElementById('tabPerFile');
+            const tabCumulative = document.getElementById('tabCumulative');
+            
+            // live badge
+            const liveFileCount = document.getElementById('liveFileCount');
+            const liveUnique = document.getElementById('liveUnique');
+            const liveTotal = document.getElementById('liveTotal');
+            
+            // select all / deselect
+            const selectAllBtn = document.getElementById('selectAllBtn');
+            const deselectAllBtn = document.getElementById('deselectAllBtn');
+            const clearBtn = document.getElementById('clearAllBtn');
+
+            // ----- STATE -----
+            let allFiles = [];                // all uploaded files data
+            let selectedIndices = new Set();   // indices of selected files
+
+            // helper escape
+            function esc(s) { return String(s).replace(/[&<>"]/g, m => m=='&'?'&amp;':m=='<'?'&lt;':m=='>'?'&gt;':m=='"'?'&quot;':m); }
+
+            // word map builder
+            function buildWordMap(text) {
+                const words = text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').split(/\s+/).filter(w => w.length);
+                const map = new Map();
+                words.forEach(w => map.set(w, (map.get(w) || 0) + 1));
+                return { map, totalWords: words.length, unique: map.size };
+            }
+
+            // show message
+            function showMessage(text, isErr) {
+                if (!text) { msgDiv.classList.add('hidden'); return; }
+                msgDiv.classList.remove('hidden');
+                msgDiv.innerHTML = `<i class="fa-regular ${isErr ? 'fa-circle-exclamation' : 'fa-circle-info'}"></i><span>${text}</span>`;
+                msgDiv.classList.toggle('bg-red-50', isErr); msgDiv.classList.toggle('border-red-200', isErr);
+                msgDiv.classList.toggle('bg-amber-50', !isErr); msgDiv.classList.toggle('border-amber-200', !isErr);
+            }
+
+            // render file list (checkboxes) based on allFiles
+            function renderFileList() {
+                if (allFiles.length === 0) {
+                    fileListContainer.innerHTML = '<div class="text-center text-slate-400 py-4 text-sm">no files yet</div>';
+                    selectedFilesCountSpan.textContent = '0';
+                    return;
+                }
+                
+                let html = '';
+                allFiles.forEach((file, idx) => {
+                    const selected = selectedIndices.has(idx) ? 'checked' : '';
+                    const shortName = file.fileName.length > 30 ? file.fileName.substr(0,27)+'…' : file.fileName;
+                    html += `
+                        <div class="file-item flex items-center gap-2 p-2 rounded-lg border ${selected ? 'selected border-indigo-500' : 'border-slate-200'}">
+                            <input type="checkbox" id="file_${idx}" data-index="${idx}" class="file-checkbox w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" ${selected}>
+                            <label for="file_${idx}" class="flex-1 text-xs truncate cursor-pointer flex items-center gap-1">
+                                <i class="fa-regular fa-file-lines text-indigo-400"></i>
+                                <span class="truncate" title="${esc(file.fileName)}">${esc(shortName)}</span>
+                                <span class="ml-auto text-xs bg-slate-100 px-1.5 rounded">${file.uniqueCount}</span>
+                            </label>
+                        </div>
+                    `;
+                });
+                fileListContainer.innerHTML = html;
+                
+                // attach event listeners to checkboxes
+                document.querySelectorAll('.file-checkbox').forEach(cb => {
+                    cb.addEventListener('change', function(e) {
+                        const idx = parseInt(this.dataset.index);
+                        if (this.checked) selectedIndices.add(idx);
+                        else selectedIndices.delete(idx);
+                        renderFileList();        // refresh to update border style
+                        updateStatsFromSelected();
+                    });
+                });
+                selectedFilesCountSpan.textContent = selectedIndices.size;
+            }
+
+            // update all stats based on selected files
+            function updateStatsFromSelected() {
+                const selectedArray = Array.from(selectedIndices).map(i => allFiles[i]);
+                const totalSelected = selectedArray.length;
+                
+                // update live badge and selected stats
+                liveFileCount.textContent = allFiles.length;   // total uploaded files
+                selectedFilesStat.textContent = totalSelected;
+
+                if (totalSelected === 0) {
+                    selectedUnique.textContent = '0';
+                    selectedTotalWords.textContent = '0';
+                    selectedTopWord.textContent = '-';
+                    selectedTopFreq.textContent = '0';
+                    selectedAvg.textContent = '0.0';
+                    liveUnique.textContent = '0';
+                    liveTotal.textContent = '0';
+                    
+                    cumulativeWordTable.innerHTML = '<tr><td colspan="2" class="text-center py-8 text-slate-400">select files to see cumulative</td></tr>';
+                    filesContainer.innerHTML = '<div class="col-span-2 text-center py-6 text-slate-400">no files selected</div>';
+                    return;
+                }
+
+                // global stats from selected
+                let globalTotal = 0;
+                const globalMap = new Map();
+                selectedArray.forEach(f => {
+                    globalTotal += f.totalWords;
+                    for (let [w, c] of f.wordMap) {
+                        globalMap.set(w, (globalMap.get(w) || 0) + c);
+                    }
+                });
+                const globalUnique = globalMap.size;
+                const globalSorted = Array.from(globalMap.entries()).sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0]));
+                const top = globalSorted[0] || ['-',0];
+                const avg = globalUnique ? (globalTotal / globalUnique).toFixed(1) : '0.0';
+
+                selectedUnique.textContent = globalUnique;
+                selectedTotalWords.textContent = globalTotal;
+                selectedTopWord.textContent = top[0];
+                selectedTopFreq.textContent = top[1];
+                selectedAvg.textContent = avg;
+                liveUnique.textContent = globalUnique;
+                liveTotal.textContent = globalTotal;
+
+                // cumulative table
+                let cumRows = '';
+                globalSorted.forEach(([w,c]) => {
+                    cumRows += `<tr class="word-row"><td class="py-2 px-5 text-slate-700 max-w-[200px] truncate">${esc(w)}</td><td class="text-right py-2 px-5 font-mono text-indigo-600">${c}</td></tr>`;
+                });
+                cumulativeWordTable.innerHTML = cumRows || '<tr><td colspan="2" class="text-center py-8 text-slate-400">no words</td></tr>';
+
+                // per file cards (only selected)
+                let filesHtml = '';
+                selectedArray.forEach(f => {
+                    const shortName = f.fileName.length > 25 ? f.fileName.substr(0,22)+'…' : f.fileName;
+                    let wordRows = '';
+                    f.sortedArray.slice(0, 12).forEach(([w,c]) => {
+                        wordRows += `<tr><td class="py-1 px-3 text-xs truncate max-w-[100px]">${esc(w)}</td><td class="text-right py-1 px-3 font-mono text-indigo-600 text-xs">${c}</td></tr>`;
+                    });
+                    if (f.sortedArray.length > 12) wordRows += `<tr><td colspan="2" class="text-center text-xs text-slate-400">+${f.sortedArray.length-12} more</td></tr>`;
+                    
+                    filesHtml += `
+                        <div class="bg-white rounded-xl border border-indigo-100 p-3 shadow">
+                            <div class="flex items-center gap-2 mb-2">
+                                <i class="fa-regular fa-file-lines text-indigo-500"></i>
+                                <span class="text-xs font-mono truncate" title="${esc(f.fileName)}">${esc(shortName)}</span>
+                                <span class="bg-indigo-100 text-indigo-700 text-xs px-2 rounded-full ml-auto">${f.uniqueCount}</span>
+                            </div>
+                            <div class="max-h-36 overflow-y-auto border-t pt-1">
+                                <table class="w-full text-xs"><tbody>${wordRows}</tbody></table>
+                            </div>
+                        </div>
+                    `;
+                });
+                filesContainer.innerHTML = filesHtml;
+            }
+
+            // process uploaded files
+            function processFiles(fileList) {
+                if (!fileList || !fileList.length) return;
+                const valid = Array.from(fileList).filter(f => f.size <= 15*1024*1024);
+                if (!valid.length) { showMessage('Files too large (>15MB)', true); return; }
+
+                loader.classList.remove('hidden');
+                loaderText.innerText = `processing ${valid.length} file(s)...`;
+                showMessage(null);
+                
+                let pending = valid.length;
+                const newFiles = [];
+
+                function oneDone(fileObj) {
+                    if (fileObj) newFiles.push(fileObj);
+                    pending--;
+                    if (pending === 0) {
+                        allFiles.push(...newFiles);
+                        // auto-select new files
+                        newFiles.forEach((_, idx) => selectedIndices.add(allFiles.length - newFiles.length + idx));
+                        
+                        loader.classList.add('hidden');
+                        mainContent.classList.remove('hidden');
+                        emptyState.classList.add('hidden');
+                        renderFileList();
+                        updateStatsFromSelected();
+                        
+                        // default to per file view
+                        perFileView.classList.remove('hidden');
+                        cumulativeView.classList.add('hidden');
+                        tabPerFile.classList.add('bg-indigo-600','text-white');
+                        tabCumulative.classList.remove('bg-indigo-600','text-white');
+                    }
+                }
+
+                valid.forEach(file => {
+                    const ext = file.name.split('.').pop().toLowerCase();
+                    const success = (text) => {
+                        const { map, totalWords, unique } = buildWordMap(text);
+                        const sorted = Array.from(map.entries()).sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0]));
+                        oneDone({ fileName: file.name, wordMap: map, totalWords, uniqueCount: unique, sortedArray: sorted });
+                    };
+                    const error = () => oneDone(null);
+
+                    if (ext === 'txt') {
+                        const r = new FileReader(); r.onload = e => success(e.target.result); r.onerror = error; r.readAsText(file);
+                    } else if (ext === 'doc') {
+                        const r = new FileReader(); r.onload = e => success(e.target.result.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g,' ').replace(/\s+/g,' ')); r.onerror = error; r.readAsBinaryString(file);
+                    } else if (ext === 'docx') {
+                        mammoth.extractRawText({ arrayBuffer: file }).then(r => success(r.value)).catch(error);
+                    } else oneDone(null);
+                });
+            }
+
+            // ----- event listeners -----
+            dropZone.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', e => { if (e.target.files.length) processFiles(e.target.files); fileInput.value = ''; });
+            
+            dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-indigo-600', 'bg-indigo-100/70'); });
+            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-indigo-600', 'bg-indigo-100/70'));
+            dropZone.addEventListener('drop', e => {
+                e.preventDefault();
+                dropZone.classList.remove('border-indigo-600', 'bg-indigo-100/70');
+                if (e.dataTransfer.files.length) processFiles(e.dataTransfer.files);
+            });
+            
+            document.addEventListener('dragover', e=>e.preventDefault());
+            document.addEventListener('drop', e=>e.preventDefault());
+
+            // select/deselect buttons
+            selectAllBtn.addEventListener('click', () => {
+                allFiles.forEach((_, idx) => selectedIndices.add(idx));
+                renderFileList();
+                updateStatsFromSelected();
+            });
+            deselectAllBtn.addEventListener('click', () => {
+                selectedIndices.clear();
+                renderFileList();
+                updateStatsFromSelected();
+            });
+
+            // tabs
+            tabPerFile.addEventListener('click', () => {
+                perFileView.classList.remove('hidden');
+                cumulativeView.classList.add('hidden');
+                tabPerFile.classList.add('bg-indigo-600','text-white');
+                tabCumulative.classList.remove('bg-indigo-600','text-white');
+            });
+            tabCumulative.addEventListener('click', () => {
+                perFileView.classList.add('hidden');
+                cumulativeView.classList.remove('hidden');
+                tabCumulative.classList.add('bg-indigo-600','text-white');
+                tabPerFile.classList.remove('bg-indigo-600','text-white');
+            });
+
+            // clear all
+            clearBtn.addEventListener('click', () => {
+                allFiles = [];
+                selectedIndices.clear();
+                mainContent.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                renderFileList();
+                updateStatsFromSelected();
+                showMessage(null);
+            });
+
+            // initial empty state
+            renderFileList();
+        })();
+    </script>
+</body>
+</html>
